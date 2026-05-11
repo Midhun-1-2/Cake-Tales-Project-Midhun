@@ -14,3 +14,11 @@ admin.site.register(models.Shape)
 
 admin.site.register(models.Weight)
 
+admin.site.register(models.Wishlist)
+
+admin.site.register(models.Cart)
+
+admin.site.register(models.DeliveryAddress)
+
+admin.site.register(models.Order)
+

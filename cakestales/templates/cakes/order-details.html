@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+
+{% block section %}
+
+<div class="container mt-4">
+
+    <!-- Page Title -->
+    <div class="text-center mb-4">
+        <h4 class="fw-bold">Order Details</h4>
+    </div>
+
+    <!-- Order Summary -->
+     {% if order %}
+    <div class="card mb-3 shadow-sm">
+        <div class="card-header d-flex justify-content-between small text-muted">
+            <span>Order Date: {{ order.payment.paid_at.date }}</span>
+            <span>Status: 
+                <span class="badge" style="background-color: green;">{{ order.payment.status }}</span>
+            </span>
+        </div>
+        <div class="card-body">
+
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="mb-1"><strong>Order ID:</strong> {{ order.order_id }}</p>
+                    <p class="mb-1"><strong>Payment Method:</strong> {{ order.payment_method }}</p>
+                    <p class="mb-1"><strong>Payment Time:</strong> {{ order.payment.paid_at.time }}</p>
+                    <p class="mb-1"><strong>Email:</strong> {{ order.user }}</p>
+                    <p class="mb-1"><strong>Delivery Address:</strong> {{ order.delivery_address.house_or_building_name }},{{ order.delivery_address.landmark }},{{ order.delivery_address.place }}</p>
+                    <p class="mb-1"><strong>Pincode:</strong>{{ order.delivery_address.pincode }}</p>
+                </div>
+
+                <div class="col-md-6 text-md-end">
+                    <p class="mb-1"><strong>Total Amount:</strong></p>
+                    <h5 class="fw-medium">₹{{ order.payment.amount }}</h5>
+                </div>
+            </div>
+
+        </div>
+    </div>
+    {%endif%}
+
+    <!-- Ordered Items -->
+    <div class="card shadow-sm">
+        <div class="card-header fw-semibold">
+            Items in this Order
+        </div>
+
+        <div class="card-body">
+
+            {% for cake in order.cakes.all %}
+            <div class="d-flex align-items-center mb-3">
+
+                <!-- Image -->
+                <img src="{{ cake.photo.url }}"
+                     class="img-thumbnail me-3"
+                     width="80" height="80">
+
+                <!-- Details -->
+                <div class="flex-grow-1">
+                    <div class="fw-semibold">
+                        {{ cake.name }}
+                    </div>
+
+                    <!-- Optional fields -->
+                    {% if cake.description %}
+                        <div class="text-muted small">
+                            {{ cake.description }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Price (if available per item) -->
+                {% if cake.price %}
+                <div class="fw-medium">
+                    ₹{{ cake.price }}
+                </div>
+                {% endif %}
+
+            </div>
+
+            <hr>
+            {% endfor %}
+
+        </div>
+    </div>
+
+    <!-- Back Button -->
+    <div class="text-center mt-4">
+        <a href="{% url 'orders' %}" class="btn btn-outline-secondary">
+            Back to Orders
+        </a>
+    </div>
+
+</div>
+
+{% endblock %}

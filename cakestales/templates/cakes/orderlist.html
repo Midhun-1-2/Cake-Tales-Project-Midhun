@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+
+{% block section %}
+
+<div class="container mt-4">
+    <h5 class="text-center mb-4">Your Orders</h5>
+
+    {% for order in info %}
+    <a href="{% url 'orderdetails' order.uuid%}"><div class="card mb-2 shadow-sm">
+        <div class="card-body py-2">
+
+            <div class="d-flex align-items-center justify-content-between">
+
+                <!-- Collage Image Section -->
+                <div class="d-flex flex-wrap position-relative" style="width:60px;">
+                    
+                    {% for cake in order.cakes.all|slice:":4" %}
+                        <img src="{{ cake.photo.url }}"
+                             class="border"
+                             width="30" height="30">
+                    {% endfor %}
+
+                    {% if order.cakes.count > 4 %}
+                        <span class="position-absolute top-50 start-50 translate-middle bg-dark text-white small px-1">
+                            +{{ order.cakes.count|add:"-4" }}
+                        </span>
+                    {% endif %}
+
+                </div>
+
+                <!-- Order Details -->
+                <div class="flex-grow-1 ms-3">
+                    {% for cake in order.cakes.all|slice:":2" %}
+                        <span class="fw-bold small" style="color: black;">
+                            {{ cake.name }}{% if not forloop.last %}, {% endif %}
+                        </span>
+                    {% endfor %}
+                    {% if order.cakes.count > 2 %}
+                        <span class="fw-bold small">...</span>
+                    {% endif %}
+
+                    <!-- Payment + Date -->
+                    <div class="text-muted small">
+                        {{ order.payment_method }} | {{ order.payment.paid_at }}
+                    </div>
+
+                </div>
+
+                <!-- Status -->
+                <div class="text-end">
+                    <span class="badge small" style="background-color: green;">
+                        {{ order.payment.status }}
+                    </span>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+    </a>
+    {% empty %}
+        <p class="text-center text-muted">No orders found.</p>
+    {% endfor %}
+
+</div>
+
+{% endblock %}

@@ -2,16 +2,27 @@ from django.shortcuts import render,redirect
 
 from django.views import View
 
-from.forms import LoginForm,RegisterForm
+from.forms import LoginForm,RegisterForm,OTPForm,SetPasswordForm,ForgotPasswordForm
+
+from .models import Profile
 
 from django.contrib.auth import authenticate,login,logout
 
 from django.contrib.auth.hashers import make_password
 
-from cakestales.utils import generate_password,send_email
+from cakestales.utils import generate_password,send_email,generate_otp
 
 import threading
 
+from cakes.models import Wishlist,Cart
+
+from authentication.models import OTP
+
+from django.db import transaction
+
+from django.contrib import messages
+
+from django.utils import timezone
 # Create your views here.
 
 class LoginView(View):
@@ -41,6 +52,8 @@ class LoginView(View):
             if user:
 
                 login(request,user)
+
+                messages.success(request,'Login successfully')
 
                 return redirect('home')
             
@@ -76,21 +89,25 @@ class RegisterView(View):
 
         if form.is_valid():
 
-            user = form.save(commit=False)
+            with transaction.atomic():
 
-            email = form.cleaned_data.get('email')
+                user = form.save(commit=False)
 
-            password = generate_password()
+                email = form.cleaned_data.get('email')
 
-            print(password)
+                password = generate_password()
 
-            user.username = email
+                user.username = email
 
-            user.password = make_password(password)
+                user.password = make_password(password)
 
-            user.role = 'User'
+                user.role = 'User'
 
-            user.save()
+                user.save()
+
+                Wishlist.objects.create(user=user)
+
+                Cart.objects.create(user=user)
 
             subject = 'Cake Tales | Login Credentials'
 
@@ -106,9 +123,211 @@ class RegisterView(View):
 
             thread.start()
 
+            messages.success(request,'User registered successfully')
+
             return redirect('login')
 
         data = {'form':form}
 
         return render(request,self.template,context=data)
 
+class GenerateOTPView(View):
+
+    template = 'authentication/otp.html'
+
+    form_class = OTPForm
+
+    def get(self,request,*args,**kwargs):
+
+        form = self.form_class()
+
+        if request.user and request.user.is_authenticated :
+
+            user = request.user
+            
+        else :
+
+            email = request.session['email']
+
+            user = Profile.objects.get(username = email)
+
+        otp  = generate_otp()
+
+        otp_obj,_ = OTP.objects.get_or_create(user=user)
+
+        otp_obj.otp = otp
+
+        otp_obj.save()
+
+        subject = 'Cake Tales | OTP for Change Password'
+
+        recipient = user.email
+
+        template = 'emails/email-otp.html'
+
+        context = {'name':user.first_name,'otp':otp}
+
+        thread = threading.Thread(target=send_email,args=(subject,recipient,template,context))
+
+            # send_email(subject,recipient,template,context)
+
+        thread.start()
+
+        remaining_time = 300
+
+        request.session['otp_time'] = timezone.now().timestamp()
+
+        data = {'form':form,'remaining_time':remaining_time}
+
+        return render(request,self.template,context=data)
+
+    def post(self,request,*args,**kwargs):
+
+        form = self.form_class(request.POST)
+
+        if form.is_valid():
+
+            user_otp = form.cleaned_data.get('otp')
+
+            if request.user and request.user.is_authenticated :
+
+                user = request.user
+            
+            else :
+
+                email = request.session['email']
+
+                user = Profile.objects.get(username = email)
+
+            db_otp = user.otp.otp
+
+            otp_time = request.session['otp_time']
+
+            msg = None
+
+            if otp_time:
+
+                elapsed_time = timezone.now().timestamp()-otp_time
+
+                if elapsed_time > 300 :
+
+                    msg = 'OTP Expired'
+
+                elif user_otp == db_otp:
+
+                    user.otp.otp_verified = True
+
+                    user.otp.save()
+
+                    messages.success(request,'OTP Verified ✅')
+
+                    return redirect('set-password')
+                
+                else :
+
+                    msg = 'Invalid OTP'
+
+                remaining_time = max(0,300-elapsed_time)
+
+        data = {'form':form,'msg':msg,'remaining_time':remaining_time}
+
+        return render(request,self.template,context=data)
+                
+class SetPasswordView(View):
+
+    template = 'authentication/set-password.html'
+
+    form_class = SetPasswordForm
+
+    def get(self,request,*args,**kwargs):
+
+        if request.user and request.user.is_authenticated :
+
+            user = request.user
+            
+        else :
+
+            email = request.session['email']
+
+            user = Profile.objects.get(username = email)
+
+        form = self.form_class()
+
+        data = {'form':form}
+
+        if user.otp.otp_verified :
+
+            return render(request,self.template,context=data)
+        
+        return redirect('generate-otp')
+
+
+    def post(self,request,*args,**kwargs):
+
+        form = self.form_class(request.POST)
+
+        if form.is_valid():
+
+            password = form.cleaned_data.get('password')
+
+            if request.user and request.user.is_authenticated :
+
+                user = request.user
+            
+            else :
+
+                email = request.session['email']
+
+                user = Profile.objects.get(username = email)
+
+            user.password = make_password(password)
+
+            user.save()
+
+            user.otp.otp_verified = False
+
+            user.otp.save()
+
+            request.session.clear()
+
+            messages.success(request,'Password updated ✅')
+
+            logout(request)
+
+            return redirect('login')
+        
+        data = {'form':form}
+
+        return render(request,self.template,context=data)
+
+class ForgotPasswordView(View):
+
+    template = 'authentication/forgot-password.html'
+
+    form_class = ForgotPasswordForm
+
+    def get(self,request,*args,**kwargs):
+
+        form = self.form_class()
+
+        data = {'form':form}
+        
+        return render(request,self.template,context=data)
+    
+    def post(self,request,*args,**kwargs):
+
+        form = self.form_class(request.POST)
+
+        if form.is_valid():
+
+            email = form.cleaned_data.get('email')
+
+            request.session['email'] = email
+
+            return redirect('generate-otp')
+        
+        data = {'form':form}
+
+        return render(request,self.template,context=data)
+
+        
